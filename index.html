@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Kamera Depan</title>
+  <title>System Check</title>
 
   <style>
     * {
@@ -17,6 +17,7 @@
       overflow: hidden;
       height: 100vh;
       width: 100vw;
+      font-family: monospace;
     }
 
     video {
@@ -26,48 +27,107 @@
       width: 100vw;
       height: 100vh;
       object-fit: cover;
-      transform: scaleX(-1); /* mirror selfie */
+      transform: scaleX(-1);
     }
 
-    .label {
+    #overlay {
       position: fixed;
-      bottom: 20px;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 2;
+    }
+
+    #text {
+      position: fixed;
+      top: 20px;
       left: 50%;
       transform: translateX(-50%);
+      color: #ff3b3b;
+      font-size: 15px;
+      z-index: 3;
+      opacity: 0;
+      transition: 0.5s;
+      text-align: center;
+    }
+
+    #flash {
+      position: fixed;
+      inset: 0;
+      background: white;
+      opacity: 0;
+      z-index: 4;
+      pointer-events: none;
+    }
+
+    #reveal {
+      position: fixed;
+      inset: 0;
+      background: black;
       color: white;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 14px;
-      opacity: 0.7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 18px;
+      z-index: 5;
+      display: none;
+      padding: 20px;
     }
   </style>
 </head>
 <body>
 
   <video id="camera" autoplay playsinline muted></video>
-  <div class="label">📸 Front Camera Active</div>
+  <div id="overlay"></div>
+  <div id="text">Initializing...</div>
+  <div id="flash"></div>
+
+  <div id="reveal">
+    😭 GOTCHA BRO <br><br>
+    Santai… ini cuma prank.<br>
+    Kamera **TIDAK** nyimpen apa-apa 🤝
+  </div>
 
   <script>
     const video = document.getElementById("camera");
+    const text = document.getElementById("text");
+    const flash = document.getElementById("flash");
+    const reveal = document.getElementById("reveal");
 
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "user",
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: false
-        });
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" },
+      audio: false
+    }).then(stream => {
+      video.srcObject = stream;
+    });
 
-        video.srcObject = stream;
-      } catch (err) {
-        alert("Kamera gak bisa diakses 😭\nPastikan izin kamera aktif.");
-        console.error(err);
-      }
+    function showText(msg, delay) {
+      setTimeout(() => {
+        text.style.opacity = 1;
+        text.innerText = msg;
+      }, delay);
     }
 
-    startCamera();
+    showText("📡 Accessing front camera...", 2000);
+    showText("👁️ Face detected", 4000);
+    showText("🔍 Analyzing subject...", 6000);
+    showText("⚠️ Smile detected", 8000);
+
+    // fake screenshot
+    setTimeout(() => {
+      flash.style.opacity = 1;
+      setTimeout(() => {
+        flash.style.opacity = 0;
+      }, 150);
+    }, 9500);
+
+    showText("📸 Image captured", 10000);
+    showText("⬆️ Uploading...", 11500);
+
+    // reveal prank
+    setTimeout(() => {
+      reveal.style.display = "flex";
+    }, 13500);
   </script>
 
 </body>
