@@ -2,115 +2,144 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Secure Terminal</title>
 
   <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
     body {
-      margin: 0;
-      background: black;
-      color: #00ff9c;
+      background:black;
+      overflow:hidden;
       font-family: "Courier New", monospace;
-      font-size: 14px;
-      overflow: hidden;
     }
 
-    #screen {
-      padding: 20px;
-      white-space: pre-wrap;
-      line-height: 1.5;
+    /* CAMERA */
+    video {
+      position:fixed;
+      inset:0;
+      width:100vw;
+      height:100vh;
+      object-fit:cover;
+      transform: scaleX(-1);
+      z-index:1;
+    }
+
+    /* DARK OVERLAY */
+    #overlay {
+      position:fixed;
+      inset:0;
+      background: rgba(0,0,0,0.55);
+      z-index:2;
+    }
+
+    /* HACKER TEXT */
+    #terminal {
+      position:fixed;
+      inset:0;
+      padding:20px;
+      color:#00ff9c;
+      font-size:14px;
+      line-height:1.45;
+      white-space:pre-wrap;
+      z-index:3;
+      text-shadow: 0 0 6px rgba(0,255,156,.6);
     }
 
     .blink {
-      animation: blink 1s infinite;
+      animation: blink 0.8s infinite;
     }
 
     @keyframes blink {
-      50% { opacity: 0; }
+      50% { opacity:0; }
     }
 
+    /* REVEAL */
     #reveal {
-      position: fixed;
-      inset: 0;
-      background: black;
-      color: white;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      font-size: 20px;
-      z-index: 99;
-      padding: 20px;
+      position:fixed;
+      inset:0;
+      background:black;
+      color:white;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      font-size:20px;
+      z-index:9;
+      padding:20px;
     }
   </style>
 </head>
 <body>
 
-<div id="screen"></div>
+<video id="cam" autoplay playsinline muted></video>
+<div id="overlay"></div>
+<div id="terminal"></div>
 
 <div id="reveal">
   😭 GOTCHA BRO <br><br>
   Ini cuma prank 😈<br>
-  Gak ada data dikirim / disimpan.<br><br>
+  Kamera gak nyimpen & gak upload apa-apa.<br><br>
   Santai 🤝
 </div>
 
 <script>
-  const screen = document.getElementById("screen");
+  // CAMERA
+  const cam = document.getElementById("cam");
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode:"user" },
+    audio:false
+  }).then(stream => cam.srcObject = stream);
+
+  // TERMINAL TEXT (PALSU)
+  const terminal = document.getElementById("terminal");
   const reveal = document.getElementById("reveal");
 
   const fakeIP = "103.145.77.21";
-  const fakeISP = "PT Telekomunikasi Indonesia";
-  const fakeCity = "Jakarta";
-  const fakeCountry = "Indonesia";
+  const city = "Jakarta";
+  const country = "Indonesia";
 
   const lines = [
-    "[ SYSTEM INITIALIZED ]",
+    "[ INIT SYSTEM ]",
     "Connecting to secure node...",
     "Connection established.",
     "",
-    "Accessing device information...",
-    "✔ Browser fingerprint acquired",
-    "✔ Screen resolution matched",
-    "✔ Front camera permission: GRANTED",
+    "Fetching device info...",
+    "✔ Camera access: GRANTED",
+    "✔ Screen mapped",
     "",
     "Tracing IP address...",
-    `IP Address      : ${fakeIP}`,
-    `ISP             : ${fakeISP}`,
-    `Location        : ${fakeCity}, ${fakeCountry}`,
+    `IP Address  : ${fakeIP}`,
+    `Location    : ${city}, ${country}`,
     "",
-    "Running facial scan...",
+    "Running face scan...",
     "✔ Face detected",
-    "✔ Expression analysis complete",
+    "✔ Expression matched",
     "",
-    "Uploading snapshot...",
-    "█▒▒▒▒▒▒▒▒▒ 12%",
-    "███▒▒▒▒▒▒▒ 36%",
-    "██████▒▒▒▒ 67%",
-    "██████████ 100%",
+    "Capturing frame...",
+    "Uploading data...",
+    "████████████████ 100%",
     "",
-    "⚠ DATA TRANSMISSION COMPLETE ⚠",
-    "",
-    "Maintaining live connection...",
+    "⚠ LIVE CONNECTION ACTIVE ⚠",
     "",
     "> awaiting command_ <span class='blink'>█</span>"
   ];
 
-  let index = 0;
+  let i = 0;
 
-  function typeLine() {
-    if (index < lines.length) {
-      screen.innerHTML += lines[index] + "\n";
-      index++;
-      setTimeout(typeLine, 400);
+  function fastType() {
+    if (i < lines.length) {
+      terminal.innerHTML += lines[i] + "\n";
+      i++;
+      setTimeout(fastType, 120); // 🔥 CEPET BANGET
     } else {
       setTimeout(() => {
         reveal.style.display = "flex";
-      }, 3000);
+      }, 2000);
     }
   }
 
-  typeLine();
+  fastType();
 </script>
 
 </body>
