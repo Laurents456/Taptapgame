@@ -1,62 +1,32 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>System Check</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secure Terminal</title>
 
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
     body {
+      margin: 0;
       background: black;
+      color: #00ff9c;
+      font-family: "Courier New", monospace;
+      font-size: 14px;
       overflow: hidden;
-      height: 100vh;
-      width: 100vw;
-      font-family: monospace;
     }
 
-    video {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-      transform: scaleX(-1);
+    #screen {
+      padding: 20px;
+      white-space: pre-wrap;
+      line-height: 1.5;
     }
 
-    #overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.55);
-      z-index: 2;
+    .blink {
+      animation: blink 1s infinite;
     }
 
-    #text {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: #ff3b3b;
-      font-size: 15px;
-      z-index: 3;
-      opacity: 0;
-      transition: 0.5s;
-      text-align: center;
-    }
-
-    #flash {
-      position: fixed;
-      inset: 0;
-      background: white;
-      opacity: 0;
-      z-index: 4;
-      pointer-events: none;
+    @keyframes blink {
+      50% { opacity: 0; }
     }
 
     #reveal {
@@ -64,71 +34,84 @@
       inset: 0;
       background: black;
       color: white;
-      display: flex;
+      display: none;
       align-items: center;
       justify-content: center;
       text-align: center;
-      font-size: 18px;
-      z-index: 5;
-      display: none;
+      font-size: 20px;
+      z-index: 99;
       padding: 20px;
     }
   </style>
 </head>
 <body>
 
-  <video id="camera" autoplay playsinline muted></video>
-  <div id="overlay"></div>
-  <div id="text">Initializing...</div>
-  <div id="flash"></div>
+<div id="screen"></div>
 
-  <div id="reveal">
-    😭 GOTCHA BRO <br><br>
-    Santai… ini cuma prank.<br>
-    Kamera **TIDAK** nyimpen apa-apa 🤝
-  </div>
+<div id="reveal">
+  😭 GOTCHA BRO <br><br>
+  Ini cuma prank 😈<br>
+  Gak ada data dikirim / disimpan.<br><br>
+  Santai 🤝
+</div>
 
-  <script>
-    const video = document.getElementById("camera");
-    const text = document.getElementById("text");
-    const flash = document.getElementById("flash");
-    const reveal = document.getElementById("reveal");
+<script>
+  const screen = document.getElementById("screen");
+  const reveal = document.getElementById("reveal");
 
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user" },
-      audio: false
-    }).then(stream => {
-      video.srcObject = stream;
-    });
+  const fakeIP = "103.145.77.21";
+  const fakeISP = "PT Telekomunikasi Indonesia";
+  const fakeCity = "Jakarta";
+  const fakeCountry = "Indonesia";
 
-    function showText(msg, delay) {
+  const lines = [
+    "[ SYSTEM INITIALIZED ]",
+    "Connecting to secure node...",
+    "Connection established.",
+    "",
+    "Accessing device information...",
+    "✔ Browser fingerprint acquired",
+    "✔ Screen resolution matched",
+    "✔ Front camera permission: GRANTED",
+    "",
+    "Tracing IP address...",
+    `IP Address      : ${fakeIP}`,
+    `ISP             : ${fakeISP}`,
+    `Location        : ${fakeCity}, ${fakeCountry}`,
+    "",
+    "Running facial scan...",
+    "✔ Face detected",
+    "✔ Expression analysis complete",
+    "",
+    "Uploading snapshot...",
+    "█▒▒▒▒▒▒▒▒▒ 12%",
+    "███▒▒▒▒▒▒▒ 36%",
+    "██████▒▒▒▒ 67%",
+    "██████████ 100%",
+    "",
+    "⚠ DATA TRANSMISSION COMPLETE ⚠",
+    "",
+    "Maintaining live connection...",
+    "",
+    "> awaiting command_ <span class='blink'>█</span>"
+  ];
+
+  let index = 0;
+
+  function typeLine() {
+    if (index < lines.length) {
+      screen.innerHTML += lines[index] + "\n";
+      index++;
+      setTimeout(typeLine, 400);
+    } else {
       setTimeout(() => {
-        text.style.opacity = 1;
-        text.innerText = msg;
-      }, delay);
+        reveal.style.display = "flex";
+      }, 3000);
     }
+  }
 
-    showText("📡 Accessing front camera...", 2000);
-    showText("👁️ Face detected", 4000);
-    showText("🔍 Analyzing subject...", 6000);
-    showText("⚠️ Smile detected", 8000);
-
-    // fake screenshot
-    setTimeout(() => {
-      flash.style.opacity = 1;
-      setTimeout(() => {
-        flash.style.opacity = 0;
-      }, 150);
-    }, 9500);
-
-    showText("📸 Image captured", 10000);
-    showText("⬆️ Uploading...", 11500);
-
-    // reveal prank
-    setTimeout(() => {
-      reveal.style.display = "flex";
-    }, 13500);
-  </script>
+  typeLine();
+</script>
 
 </body>
 </html>
