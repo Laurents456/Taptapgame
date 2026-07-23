@@ -1,146 +1,210 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Secure Terminal</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AR Hand Filter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- MediaPipe Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-
     body {
-      background:black;
-      overflow:hidden;
-      font-family: "Courier New", monospace;
+      margin: 0;
+      padding: 0;
+      background-color: #000;
+      overflow: hidden;
+      touch-action: none;
     }
-
-    /* CAMERA */
-    video {
-      position:fixed;
-      inset:0;
-      width:100vw;
-      height:100vh;
-      object-fit:cover;
+    
+    /* Mirror the canvas so it acts like a normal selfie camera */
+    #output_canvas {
       transform: scaleX(-1);
-      z-index:1;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
     }
 
-    /* DARK OVERLAY */
-    #overlay {
-      position:fixed;
-      inset:0;
-      background: rgba(0,0,0,0.55);
-      z-index:2;
-    }
-
-    /* HACKER TEXT */
-    #terminal {
-      position:fixed;
-      inset:0;
-      padding:20px;
-      color:#00ff9c;
-      font-size:14px;
-      line-height:1.45;
-      white-space:pre-wrap;
-      z-index:3;
-      text-shadow: 0 0 6px rgba(0,255,156,.6);
-    }
-
-    .blink {
-      animation: blink 0.8s infinite;
-    }
-
-    @keyframes blink {
-      50% { opacity:0; }
-    }
-
-    /* REVEAL */
-    #reveal {
-      position:fixed;
-      inset:0;
-      background:black;
-      color:white;
-      display:none;
-      align-items:center;
-      justify-content:center;
-      text-align:center;
-      font-size:20px;
-      z-index:9;
-      padding:20px;
+    .glass-panel {
+      background: rgba(20, 20, 20, 0.6);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
     }
   </style>
 </head>
-<body>
+<body class="relative flex items-center justify-center h-screen w-screen">
 
-<video id="cam" autoplay playsinline muted></video>
-<div id="overlay"></div>
-<div id="terminal"></div>
+  <!-- Hidden video element to capture camera stream -->
+  <video id="input_video" class="hidden" playsinline></video>
+  
+  <!-- Canvas to draw the final result -->
+  <canvas id="output_canvas"></canvas>
 
-<div id="reveal">
-  😭 GOTCHA BRO <br><br>
-  Ini cuma prank 😈<br>
-  Kamera gak nyimpen & gak upload apa-apa.<br><br>
-  Santai 🤝
-</div>
+  <!-- UI Overlay -->
+  <div class="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-between p-6 z-10">
+    
+    <!-- Top Bar -->
+    <div class="flex justify-between items-start">
+      <div class="glass-panel text-white px-4 py-2 rounded-xl text-sm font-semibold border border-gray-600 shadow-lg">
+        ✨ AR Filter
+      </div>
+      <div id="loading_indicator" class="glass-panel text-yellow-400 px-4 py-2 rounded-xl text-sm font-bold border border-yellow-600 animate-pulse shadow-lg">
+        Menyalakan Kamera...
+      </div>
+    </div>
 
-<script>
-  // CAMERA
-  const cam = document.getElementById("cam");
-  navigator.mediaDevices.getUserMedia({
-    video: { facingMode:"user" },
-    audio:false
-  }).then(stream => cam.srcObject = stream);
+    <!-- Bottom Instructions -->
+    <div class="glass-panel text-white p-4 rounded-2xl text-center shadow-2xl border border-gray-600 pointer-events-auto">
+      <p class="font-bold text-lg mb-1">Gunakan Dua Tangan! 👐</p>
+      <p class="text-sm text-gray-300 mb-3">Buat bingkai menggunakan Jempol dan Telunjuk.</p>
+      
+      <button id="change_effect_btn" class="bg-indigo-600 hover:bg-indigo-500 text-white w-full py-3 rounded-xl font-bold transition-colors active:scale-95">
+        Ganti Efek Filter
+      </button>
+    </div>
+  </div>
 
-  // TERMINAL TEXT (PALSU)
-  const terminal = document.getElementById("terminal");
-  const reveal = document.getElementById("reveal");
+  <script>
+    const videoElement = document.getElementById('input_video');
+    const canvasElement = document.getElementById('output_canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const loadingIndicator = document.getElementById('loading_indicator');
+    const changeEffectBtn = document.getElementById('change_effect_btn');
 
-  const fakeIP = "103.145.77.21";
-  const city = "Jakarta";
-  const country = "Indonesia";
+    // Daftar efek filter CSS (Thermal, Invert, Neon, Grayscale)
+    const effects = [
+      'hue-rotate(240deg) saturate(300%) invert(80%)', // Thermal-ish
+      'invert(100%) hue-rotate(180deg)',              // Alien Invert
+      'saturate(400%) hue-rotate(90deg) contrast(150%)', // Neon
+      'grayscale(100%) contrast(150%) brightness(120%)'  // B&W Comic
+    ];
+    let currentEffectIndex = 0;
 
-  const lines = [
-    "[ INIT SYSTEM ]",
-    "Connecting to secure node...",
-    "Connection established.",
-    "",
-    "Fetching device info...",
-    "✔ Camera access: GRANTED",
-    "✔ Screen mapped",
-    "",
-    "Tracing IP address...",
-    `IP Address  : ${fakeIP}`,
-    `Location    : ${city}, ${country}`,
-    "",
-    "Running face scan...",
-    "✔ Face detected",
-    "✔ Expression matched",
-    "",
-    "Capturing frame...",
-    "Uploading data...",
-    "████████████████ 100%",
-    "",
-    "⚠ LIVE CONNECTION ACTIVE ⚠",
-    "",
-    "> awaiting command_ <span class='blink'>█</span>"
-  ];
+    changeEffectBtn.addEventListener('click', () => {
+      currentEffectIndex = (currentEffectIndex + 1) % effects.length;
+    });
 
-  let i = 0;
+    function onResults(results) {
+      if (loadingIndicator.style.display !== 'none') {
+        loadingIndicator.style.display = 'none';
+      }
 
-  function fastType() {
-    if (i < lines.length) {
-      terminal.innerHTML += lines[i] + "\n";
-      i++;
-      setTimeout(fastType, 120); // 🔥 CEPET BANGET
-    } else {
-      setTimeout(() => {
-        reveal.style.display = "flex";
-      }, 2000);
+      canvasElement.width = videoElement.videoWidth;
+      canvasElement.height = videoElement.videoHeight;
+      const w = canvasElement.width;
+      const h = canvasElement.height;
+
+      canvasCtx.clearRect(0, 0, w, h);
+      canvasCtx.drawImage(results.image, 0, 0, w, h);
+
+      let framePoints = [];
+
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        
+        if (results.multiHandLandmarks.length === 2) {
+          const hand1 = results.multiHandLandmarks[0];
+          const hand2 = results.multiHandLandmarks[1];
+
+          framePoints = [
+            { x: hand1[4].x * w, y: hand1[4].y * h }, // Jempol 1
+            { x: hand1[8].x * w, y: hand1[8].y * h }, // Telunjuk 1
+            { x: hand2[8].x * w, y: hand2[8].y * h }, // Telunjuk 2
+            { x: hand2[4].x * w, y: hand2[4].y * h }  // Jempol 2
+          ];
+        } else if (results.multiHandLandmarks.length === 1) {
+          const hand = results.multiHandLandmarks[0];
+          framePoints = [
+            { x: hand[4].x * w, y: hand[4].y * h },
+            { x: hand[8].x * w, y: hand[8].y * h },
+            { x: hand[20].x * w, y: hand[20].y * h }
+          ];
+        }
+
+        if (framePoints.length > 0) {
+          canvasCtx.save();
+          
+          canvasCtx.beginPath();
+          canvasCtx.moveTo(framePoints[0].x, framePoints[0].y);
+          for (let i = 1; i < framePoints.length; i++) {
+            canvasCtx.lineTo(framePoints[i].x, framePoints[i].y);
+          }
+          canvasCtx.closePath();
+
+          canvasCtx.clip();
+          canvasCtx.filter = effects[currentEffectIndex];
+          canvasCtx.drawImage(results.image, 0, 0, w, h);
+          canvasCtx.restore();
+
+          canvasCtx.beginPath();
+          canvasCtx.moveTo(framePoints[0].x, framePoints[0].y);
+          for (let i = 1; i < framePoints.length; i++) {
+            canvasCtx.lineTo(framePoints[i].x, framePoints[i].y);
+          }
+          canvasCtx.closePath();
+
+          canvasCtx.lineWidth = 4;
+          canvasCtx.strokeStyle = '#00FF00';
+          canvasCtx.shadowColor = '#00FF00';
+          canvasCtx.shadowBlur = 15;
+          canvasCtx.stroke();
+          canvasCtx.shadowBlur = 0; 
+        }
+      }
     }
-  }
 
-  fastType();
-</script>
+    const hands = new Hands({
+      locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+      }
+    });
 
+    hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.6
+    });
+
+    hands.onResults(onResults);
+
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await hands.send({image: videoElement});
+      },
+      width: 1280,
+      height: 720,
+      facingMode: "user"
+    });
+
+    // Menangani error akses kamera dengan UI yang lebih jelas (bukan sekedar alert)
+    camera.start().catch(err => {
+      console.error("Gagal membuka kamera:", err);
+      loadingIndicator.style.display = 'none';
+      
+      const errorUI = document.createElement('div');
+      errorUI.className = 'absolute top-0 left-0 w-full h-full flex items-center justify-center bg-black bg-opacity-90 z-50 p-6 text-center pointer-events-auto';
+      errorUI.innerHTML = `
+        <div class="glass-panel border border-red-500 p-6 rounded-2xl max-w-sm">
+            <div class="text-4xl mb-4">📷🚫</div>
+            <h2 class="text-white text-xl font-bold mb-2">Akses Kamera Diblokir</h2>
+            <p class="text-gray-300 text-sm mb-4 leading-relaxed">
+                Browser memblokir kamera karena web ini berjalan di dalam <b>Iframe</b> (seperti di OneCompiler). 
+            </p>
+            <div class="bg-gray-800 p-3 rounded-lg text-left text-xs text-gray-300 mb-4">
+                <b>Solusi:</b><br/>
+                Host kode HTML ini di layanan seperti <b>Vercel, Github Pages,</b> atau <b>Netlify</b> lalu buka link aslinya di tab baru.
+            </div>
+            <button onclick="location.reload()" class="bg-white text-black px-6 py-2 rounded-full font-bold w-full active:scale-95 transition-transform">
+                Coba Lagi
+            </button>
+        </div>
+      `;
+      document.body.appendChild(errorUI);
+    });
+  </script>
 </body>
 </html>
