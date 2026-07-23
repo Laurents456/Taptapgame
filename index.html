@@ -3,13 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Hand Filter</title>
+  <title>AR Hand Filter - Flash Warning</title>
   <script src="https://cdn.tailwindcss.com"></script>
   
   <!-- MediaPipe Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
   <style>
@@ -19,9 +17,9 @@
       background-color: #000;
       overflow: hidden;
       touch-action: none;
+      font-family: sans-serif;
     }
     
-    /* Mirror the canvas so it acts like a normal selfie camera */
     #output_canvas {
       transform: scaleX(-1);
       width: 100vw;
@@ -30,40 +28,106 @@
     }
 
     .glass-panel {
-      background: rgba(20, 20, 20, 0.6);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      background: rgba(15, 15, 15, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    /* Animasi peringatan flash */
+    @keyframes flashText {
+      0%, 100% { color: #ff3b30; }
+      50% { color: #fff; }
+    }
+    .flash-warning-text {
+      animation: flashText 0.5s infinite;
     }
   </style>
 </head>
-<body class="relative flex items-center justify-center h-screen w-screen">
+<body class="relative flex items-center justify-center h-screen w-screen text-white">
 
-  <!-- Hidden video element to capture camera stream -->
+  <!-- Video disembunyikan -->
   <video id="input_video" class="hidden" playsinline></video>
   
-  <!-- Canvas to draw the final result -->
+  <!-- Canvas Utama -->
   <canvas id="output_canvas"></canvas>
 
   <!-- UI Overlay -->
-  <div class="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-between p-6 z-10">
+  <div class="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-between p-4 z-10">
     
     <!-- Top Bar -->
     <div class="flex justify-between items-start">
-      <div class="glass-panel text-white px-4 py-2 rounded-xl text-sm font-semibold border border-gray-600 shadow-lg">
-        ✨ AR Filter
+      <div class="glass-panel px-3 py-2 rounded-xl text-xs font-bold shadow-lg flash-warning-text border-red-500">
+        ⚠️ FLASH WARNING AKTIF
       </div>
-      <div id="loading_indicator" class="glass-panel text-yellow-400 px-4 py-2 rounded-xl text-sm font-bold border border-yellow-600 animate-pulse shadow-lg">
-        Menyalakan Kamera...
-      </div>
+      
+      <!-- Tombol Pengaturan -->
+      <button id="settings_btn" class="glass-panel px-4 py-2 rounded-xl text-sm font-bold active:scale-95 pointer-events-auto transition-transform flex items-center gap-2">
+        ⚙️ Atur Jari
+      </button>
     </div>
 
-    <!-- Bottom Instructions -->
-    <div class="glass-panel text-white p-4 rounded-2xl text-center shadow-2xl border border-gray-600 pointer-events-auto">
-      <p class="font-bold text-lg mb-1">Gunakan Dua Tangan! 👐</p>
-      <p class="text-sm text-gray-300 mb-3">Buat bingkai menggunakan Jempol dan Telunjuk.</p>
-      
-      <button id="change_effect_btn" class="bg-indigo-600 hover:bg-indigo-500 text-white w-full py-3 rounded-xl font-bold transition-colors active:scale-95">
-        Ganti Efek Filter
+    <!-- Status Loading -->
+    <div id="loading_indicator" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 glass-panel text-yellow-400 px-6 py-3 rounded-xl font-bold border-yellow-600 animate-pulse shadow-2xl text-center">
+      Menghidupkan Kamera & AI...<br>
+      <span class="text-xs text-gray-300 font-normal">Menggunakan Mode Performa Tinggi</span>
+    </div>
+  </div>
+
+  <!-- Menu Pengaturan Jari (Hidden by default) -->
+  <div id="settings_modal" class="hidden absolute top-0 left-0 w-full h-full bg-black bg-opacity-80 z-50 flex items-center justify-center p-4">
+    <div class="glass-panel p-6 rounded-3xl w-full max-w-sm pointer-events-auto">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-xl font-bold">⚙️ Pengaturan Jari</h2>
+        <button id="close_settings_btn" class="text-gray-400 hover:text-white font-bold text-xl">&times;</button>
+      </div>
+
+      <div class="space-y-4">
+        <!-- Tangan 1 -->
+        <div class="bg-gray-800 bg-opacity-50 p-3 rounded-xl">
+          <p class="font-semibold text-sm mb-2 text-indigo-300">Tangan Pertama</p>
+          <div class="flex gap-2">
+            <select id="t1_p1" class="w-1/2 bg-black border border-gray-600 rounded p-2 text-xs">
+              <option value="4" selected>Jempol</option>
+              <option value="8">Telunjuk</option>
+              <option value="12">Tengah</option>
+              <option value="16">Manis</option>
+              <option value="20">Kelingking</option>
+            </select>
+            <select id="t1_p2" class="w-1/2 bg-black border border-gray-600 rounded p-2 text-xs">
+              <option value="4">Jempol</option>
+              <option value="8" selected>Telunjuk</option>
+              <option value="12">Tengah</option>
+              <option value="16">Manis</option>
+              <option value="20">Kelingking</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Tangan 2 -->
+        <div class="bg-gray-800 bg-opacity-50 p-3 rounded-xl">
+          <p class="font-semibold text-sm mb-2 text-pink-300">Tangan Kedua</p>
+          <div class="flex gap-2">
+            <select id="t2_p1" class="w-1/2 bg-black border border-gray-600 rounded p-2 text-xs">
+              <option value="4">Jempol</option>
+              <option value="8" selected>Telunjuk</option>
+              <option value="12">Tengah</option>
+              <option value="16">Manis</option>
+              <option value="20">Kelingking</option>
+            </select>
+            <select id="t2_p2" class="w-1/2 bg-black border border-gray-600 rounded p-2 text-xs">
+              <option value="4" selected>Jempol</option>
+              <option value="8">Telunjuk</option>
+              <option value="12">Tengah</option>
+              <option value="16">Manis</option>
+              <option value="20">Kelingking</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <button id="save_settings_btn" class="w-full mt-6 bg-white text-black font-bold py-3 rounded-xl active:scale-95 transition-transform">
+        Simpan & Tutup
       </button>
     </div>
   </div>
@@ -71,62 +135,82 @@
   <script>
     const videoElement = document.getElementById('input_video');
     const canvasElement = document.getElementById('output_canvas');
-    const canvasCtx = canvasElement.getContext('2d');
+    const canvasCtx = canvasElement.getContext('2d', { alpha: false }); // Optimasi canvas
     const loadingIndicator = document.getElementById('loading_indicator');
-    const changeEffectBtn = document.getElementById('change_effect_btn');
+    
+    // UI Elements
+    const settingsModal = document.getElementById('settings_modal');
+    const settingsBtn = document.getElementById('settings_btn');
+    const closeSettingsBtn = document.getElementById('close_settings_btn');
+    const saveSettingsBtn = document.getElementById('save_settings_btn');
 
-    // Daftar efek filter CSS (Thermal, Invert, Neon, Grayscale)
-    const effects = [
-      'hue-rotate(240deg) saturate(300%) invert(80%)', // Thermal-ish
-      'invert(100%) hue-rotate(180deg)',              // Alien Invert
-      'saturate(400%) hue-rotate(90deg) contrast(150%)', // Neon
-      'grayscale(100%) contrast(150%) brightness(120%)'  // B&W Comic
+    // Variabel Konfigurasi Jari (Default: Jempol dan Telunjuk)
+    // 4=Jempol, 8=Telunjuk, 12=Tengah, 16=Manis, 20=Kelingking
+    let fingerConfig = {
+      t1_p1: 4, t1_p2: 8,
+      t2_p1: 8, t2_p2: 4
+    };
+
+    // Array efek flash warning (berubah dengan sangat cepat)
+    const flashEffects = [
+      'invert(100%) hue-rotate(90deg) saturate(400%)',
+      'invert(100%) hue-rotate(180deg) saturate(400%)',
+      'invert(100%) hue-rotate(270deg) saturate(400%)',
+      'contrast(300%) brightness(150%) hue-rotate(45deg)',
+      'invert(100%) sepia(100%) saturate(500%) hue-rotate(310deg)'
     ];
-    let currentEffectIndex = 0;
 
-    changeEffectBtn.addEventListener('click', () => {
-      currentEffectIndex = (currentEffectIndex + 1) % effects.length;
-    });
+    // Logika buka/tutup modal pengaturan
+    settingsBtn.onclick = () => settingsModal.classList.remove('hidden');
+    closeSettingsBtn.onclick = () => settingsModal.classList.add('hidden');
+    saveSettingsBtn.onclick = () => {
+      fingerConfig.t1_p1 = parseInt(document.getElementById('t1_p1').value);
+      fingerConfig.t1_p2 = parseInt(document.getElementById('t1_p2').value);
+      fingerConfig.t2_p1 = parseInt(document.getElementById('t2_p1').value);
+      fingerConfig.t2_p2 = parseInt(document.getElementById('t2_p2').value);
+      settingsModal.classList.add('hidden');
+    };
 
     function onResults(results) {
       if (loadingIndicator.style.display !== 'none') {
         loadingIndicator.style.display = 'none';
       }
 
-      canvasElement.width = videoElement.videoWidth;
-      canvasElement.height = videoElement.videoHeight;
-      const w = canvasElement.width;
-      const h = canvasElement.height;
+      // Ukuran disesuaikan dengan video
+      const w = canvasElement.width = videoElement.videoWidth;
+      const h = canvasElement.height = videoElement.videoHeight;
 
-      canvasCtx.clearRect(0, 0, w, h);
+      // 1. Gambar video aslinya terlebih dahulu
       canvasCtx.drawImage(results.image, 0, 0, w, h);
 
-      let framePoints = [];
-
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        
-        if (results.multiHandLandmarks.length === 2) {
+        let framePoints = [];
+
+        // Ambil titik sesuai konfigurasi pengguna
+        if (results.multiHandLandmarks.length >= 2) {
           const hand1 = results.multiHandLandmarks[0];
           const hand2 = results.multiHandLandmarks[1];
 
           framePoints = [
-            { x: hand1[4].x * w, y: hand1[4].y * h }, // Jempol 1
-            { x: hand1[8].x * w, y: hand1[8].y * h }, // Telunjuk 1
-            { x: hand2[8].x * w, y: hand2[8].y * h }, // Telunjuk 2
-            { x: hand2[4].x * w, y: hand2[4].y * h }  // Jempol 2
+            { x: hand1[fingerConfig.t1_p1].x * w, y: hand1[fingerConfig.t1_p1].y * h },
+            { x: hand1[fingerConfig.t1_p2].x * w, y: hand1[fingerConfig.t1_p2].y * h },
+            { x: hand2[fingerConfig.t2_p1].x * w, y: hand2[fingerConfig.t2_p1].y * h },
+            { x: hand2[fingerConfig.t2_p2].x * w, y: hand2[fingerConfig.t2_p2].y * h }
           ];
         } else if (results.multiHandLandmarks.length === 1) {
+          // Jika hanya 1 tangan, gambar segitiga pakai 3 jari agar tetap ada efeknya
           const hand = results.multiHandLandmarks[0];
           framePoints = [
-            { x: hand[4].x * w, y: hand[4].y * h },
-            { x: hand[8].x * w, y: hand[8].y * h },
-            { x: hand[20].x * w, y: hand[20].y * h }
+            { x: hand[fingerConfig.t1_p1].x * w, y: hand[fingerConfig.t1_p1].y * h },
+            { x: hand[fingerConfig.t1_p2].x * w, y: hand[fingerConfig.t1_p2].y * h },
+            { x: hand[20].x * w, y: hand[20].y * h } // Jari kelingking sbg titik ke 3
           ];
         }
 
         if (framePoints.length > 0) {
           canvasCtx.save();
           
+          // Buat jalur area filter
           canvasCtx.beginPath();
           canvasCtx.moveTo(framePoints[0].x, framePoints[0].y);
           for (let i = 1; i < framePoints.length; i++) {
@@ -134,11 +218,21 @@
           }
           canvasCtx.closePath();
 
+          // Potong area
           canvasCtx.clip();
-          canvasCtx.filter = effects[currentEffectIndex];
+
+          // Hitung index efek berdasarkan waktu saat ini (ganti warna setiap 60 milidetik!)
+          const time = Date.now();
+          const effectIndex = Math.floor(time / 60) % flashEffects.length;
+          
+          // Terapkan efek kedip (flash warning)
+          canvasCtx.filter = flashEffects[effectIndex];
           canvasCtx.drawImage(results.image, 0, 0, w, h);
+          
+          // Reset clip dan filter
           canvasCtx.restore();
 
+          // Gambar border di sekeliling area potong
           canvasCtx.beginPath();
           canvasCtx.moveTo(framePoints[0].x, framePoints[0].y);
           for (let i = 1; i < framePoints.length; i++) {
@@ -146,64 +240,48 @@
           }
           canvasCtx.closePath();
 
-          canvasCtx.lineWidth = 4;
-          canvasCtx.strokeStyle = '#00FF00';
-          canvasCtx.shadowColor = '#00FF00';
-          canvasCtx.shadowBlur = 15;
+          // Efek border RGB yang ikut berkedip
+          const borderColors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF'];
+          canvasCtx.lineWidth = 5;
+          canvasCtx.strokeStyle = borderColors[Math.floor(time / 80) % borderColors.length];
           canvasCtx.stroke();
-          canvasCtx.shadowBlur = 0; 
         }
       }
     }
 
+    // AI Initialization
     const hands = new Hands({
       locateFile: (file) => {
         return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
       }
     });
 
+    // PENGATURAN PERFORMA TINGGI UNTUK HP
     hands.setOptions({
       maxNumHands: 2,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.6,
-      minTrackingConfidence: 0.6
+      modelComplexity: 0, // "0" Sangat ringan & cepat (FPS naik drastis), walau sedikit kurang akurat dari "1"
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
     });
-
     hands.onResults(onResults);
 
+    // Camera Initialization
     const camera = new Camera(videoElement, {
       onFrame: async () => {
         await hands.send({image: videoElement});
       },
-      width: 1280,
-      height: 720,
+      // PENGATURAN RESOLUSI DITURUNKAN AGAR TIDAK PATAH-PATAH DI HP
+      width: 640,  
+      height: 480, 
       facingMode: "user"
     });
 
-    // Menangani error akses kamera dengan UI yang lebih jelas (bukan sekedar alert)
     camera.start().catch(err => {
-      console.error("Gagal membuka kamera:", err);
-      loadingIndicator.style.display = 'none';
-      
-      const errorUI = document.createElement('div');
-      errorUI.className = 'absolute top-0 left-0 w-full h-full flex items-center justify-center bg-black bg-opacity-90 z-50 p-6 text-center pointer-events-auto';
-      errorUI.innerHTML = `
-        <div class="glass-panel border border-red-500 p-6 rounded-2xl max-w-sm">
-            <div class="text-4xl mb-4">📷🚫</div>
-            <h2 class="text-white text-xl font-bold mb-2">Akses Kamera Diblokir</h2>
-            <p class="text-gray-300 text-sm mb-4 leading-relaxed">
-                Browser memblokir kamera karena web ini berjalan di dalam <b>Iframe</b> (seperti di OneCompiler). 
-            </p>
-            <div class="bg-gray-800 p-3 rounded-lg text-left text-xs text-gray-300 mb-4">
-                <b>Solusi:</b><br/>
-                Host kode HTML ini di layanan seperti <b>Vercel, Github Pages,</b> atau <b>Netlify</b> lalu buka link aslinya di tab baru.
-            </div>
-            <button onclick="location.reload()" class="bg-white text-black px-6 py-2 rounded-full font-bold w-full active:scale-95 transition-transform">
-                Coba Lagi
-            </button>
-        </div>
-      `;
-      document.body.appendChild(errorUI);
+      console.error("Camera error:", err);
+      loadingIndicator.innerHTML = "❌ Kamera Diblokir.<br>Buka link ini di tab browser baru (bukan Iframe)!";
+      loadingIndicator.classList.replace("border-yellow-600", "border-red-600");
+      loadingIndicator.classList.replace("text-yellow-400", "text-red-400");
+      loadingIndicator.classList.remove("animate-pulse");
     });
   </script>
 </body>
