@@ -1,288 +1,212 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Hand Filter - Flash Warning</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- MediaPipe Libraries -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      background-color: #000;
-      overflow: hidden;
-      touch-action: none;
-      font-family: sans-serif;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber Hacker Scanner v1.0</title>
     
-    #output_canvas {
-      transform: scaleX(-1);
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-    }
-
-    .glass-panel {
-      background: rgba(15, 15, 15, 0.75);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
+    <!-- Tailwind CSS untuk Styling UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
     
-    /* Animasi peringatan flash */
-    @keyframes flashText {
-      0%, 100% { color: #ff3b30; }
-      50% { color: #fff; }
-    }
-    .flash-warning-text {
-      animation: flashText 0.5s infinite;
-    }
-  </style>
+    <!-- TensorFlow.js dan Model COCO-SSD (Deteksi Objek) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+
+    <style>
+        body, html {
+            overflow: hidden;
+            touch-action: none;
+            background: #000;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        
+        /* Efek Garis Scan ala Hacker (Scanline) */
+        .scanline {
+            width: 100%;
+            height: 2px;
+            background: rgba(0, 255, 0, 0.6);
+            position: absolute;
+            top: 0;
+            left: 0;
+            animation: scan 3s linear infinite;
+            pointer-events: none;
+            box-shadow: 0 0 10px #00ff00;
+        }
+        @keyframes scan {
+            0% { top: 0%; }
+            100% { top: 100%; }
+        }
+    </style>
 </head>
-<body class="relative flex items-center justify-center h-screen w-screen text-white">
+<body class="text-green-400 h-screen w-screen relative">
 
-  <!-- Video disembunyikan -->
-  <video id="input_video" class="hidden" playsinline></video>
-  
-  <!-- Canvas Utama -->
-  <canvas id="output_canvas"></canvas>
+    <!-- Layer 0: Video Kamera Belakang -->
+    <video id="webcam" class="absolute top-0 left-0 w-full h-full object-cover z-0" autoplay playsinline muted></video>
 
-  <!-- UI Overlay -->
-  <div class="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-between p-4 z-10">
-    
-    <!-- Top Bar -->
-    <div class="flex justify-between items-start">
-      <div class="glass-panel px-3 py-2 rounded-xl text-xs font-bold shadow-lg flash-warning-text border-red-500">
-        ⚠️ FLASH WARNING AKTIF
-      </div>
-      
-      <!-- Tombol Pengaturan -->
-      <button id="settings_btn" class="glass-panel px-4 py-2 rounded-xl text-sm font-bold active:scale-95 pointer-events-auto transition-transform flex items-center gap-2">
-        ⚙️ Atur Jari
-      </button>
-    </div>
+    <!-- Layer 1: Canvas ESP / Bounding Box -->
+    <canvas id="overlayCanvas" class="absolute top-0 left-0 w-full h-full z-10 pointer-events-none"></canvas>
 
-    <!-- Status Loading -->
-    <div id="loading_indicator" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 glass-panel text-yellow-400 px-6 py-3 rounded-xl font-bold border-yellow-600 animate-pulse shadow-2xl text-center">
-      Menghidupkan Kamera & AI...<br>
-      <span class="text-xs text-gray-300 font-normal">Menggunakan Mode Performa Tinggi</span>
-    </div>
-  </div>
+    <!-- Layer 2: Efek Visual Scanline -->
+    <div class="scanline z-20"></div>
 
-  <!-- Menu Pengaturan Jari (Hidden by default) -->
-  <div id="settings_modal" class="hidden absolute top-0 left-0 w-full h-full bg-black bg-opacity-80 z-50 flex items-center justify-center p-4">
-    <div class="glass-panel p-6 rounded-3xl w-full max-w-sm pointer-events-auto">
-      <div class="flex justify-between items-center mb-6">
-        <h2 class="text-xl font-bold">⚙️ Pengaturan Jari</h2>
-        <button id="close_settings_btn" class="text-gray-400 hover:text-white font-bold text-xl">&times;</button>
-      </div>
-
-      <div class="space-y-4">
-        <!-- Tangan 1 -->
-        <div class="bg-gray-800 bg-opacity-50 p-3 rounded-xl">
-          <p class="font-semibold text-sm mb-2 text-indigo-300">Tangan Pertama</p>
-          <div class="flex gap-2">
-            <select id="t1_p1" class="w-1/2 bg-black border border-gray-600 rounded p-2 text-xs">
-              <option value="4" selected>Jempol</option>
-              <option value="8">Telunjuk</option>
-              <option value="12">Tengah</option>
-              <option value="16">Manis</option>
-              <option value="20">Kelingking</option>
-            </select>
-            <select id="t1_p2" class="w-1/2 bg-black border border-gray-600 rounded p-2 text-xs">
-              <option value="4">Jempol</option>
-              <option value="8" selected>Telunjuk</option>
-              <option value="12">Tengah</option>
-              <option value="16">Manis</option>
-              <option value="20">Kelingking</option>
-            </select>
-          </div>
+    <!-- Layer 3: HUD Hacker (Atas) -->
+    <div class="absolute top-0 left-0 w-full p-4 z-30 flex justify-between items-start pointer-events-none">
+        <div class="bg-black/80 border border-green-500/60 p-3 rounded-lg shadow-[0_0_15px_rgba(0,255,0,0.3)] backdrop-blur-sm">
+            <p class="text-xs text-green-300 font-bold">STATUS: <span class="text-green-400 animate-pulse">AKTIF & MEMINDAI</span></p>
+            <p class="text-sm font-mono mt-1">TARGET TERDETEKSI: <span id="objectCount" class="text-white font-bold">0</span></p>
         </div>
-
-        <!-- Tangan 2 -->
-        <div class="bg-gray-800 bg-opacity-50 p-3 rounded-xl">
-          <p class="font-semibold text-sm mb-2 text-pink-300">Tangan Kedua</p>
-          <div class="flex gap-2">
-            <select id="t2_p1" class="w-1/2 bg-black border border-gray-600 rounded p-2 text-xs">
-              <option value="4">Jempol</option>
-              <option value="8" selected>Telunjuk</option>
-              <option value="12">Tengah</option>
-              <option value="16">Manis</option>
-              <option value="20">Kelingking</option>
-            </select>
-            <select id="t2_p2" class="w-1/2 bg-black border border-gray-600 rounded p-2 text-xs">
-              <option value="4" selected>Jempol</option>
-              <option value="8">Telunjuk</option>
-              <option value="12">Tengah</option>
-              <option value="16">Manis</option>
-              <option value="20">Kelingking</option>
-            </select>
-          </div>
+        <div class="bg-black/80 border border-green-500/60 p-3 rounded-lg shadow-[0_0_15px_rgba(0,255,0,0.3)] backdrop-blur-sm text-right">
+            <p class="text-xs text-green-300 font-bold">KAMERA: <span class="text-white">BELAKANG (REAR)</span></p>
+            <p class="text-xs font-mono mt-1 text-cyan-400">AI: NEURAL_NET v2</p>
         </div>
-      </div>
-
-      <button id="save_settings_btn" class="w-full mt-6 bg-white text-black font-bold py-3 rounded-xl active:scale-95 transition-transform">
-        Simpan & Tutup
-      </button>
     </div>
-  </div>
 
-  <script>
-    const videoElement = document.getElementById('input_video');
-    const canvasElement = document.getElementById('output_canvas');
-    const canvasCtx = canvasElement.getContext('2d', { alpha: false }); // Optimasi canvas
-    const loadingIndicator = document.getElementById('loading_indicator');
-    
-    // UI Elements
-    const settingsModal = document.getElementById('settings_modal');
-    const settingsBtn = document.getElementById('settings_btn');
-    const closeSettingsBtn = document.getElementById('close_settings_btn');
-    const saveSettingsBtn = document.getElementById('save_settings_btn');
+    <!-- Layer 4: Terminal Log Hacker (Bawah) -->
+    <div class="absolute bottom-4 left-4 right-4 z-30 pointer-events-none">
+        <div class="bg-black/80 border border-green-500/60 p-3 rounded-lg shadow-[0_0_15px_rgba(0,255,0,0.3)] backdrop-blur-sm">
+            <p class="text-xs text-green-500 font-bold mb-1">[SYSTEM LOGS & ALERTS]</p>
+            <div id="terminalLog" class="text-xs text-green-300 space-y-1 font-mono h-16 overflow-hidden">
+                > System initializing neural network weights...
+            </div>
+        </div>
+    </div>
 
-    // Variabel Konfigurasi Jari (Default: Jempol dan Telunjuk)
-    // 4=Jempol, 8=Telunjuk, 12=Tengah, 16=Manis, 20=Kelingking
-    let fingerConfig = {
-      t1_p1: 4, t1_p2: 8,
-      t2_p1: 8, t2_p2: 4
-    };
+    <!-- Layer 5: Layar Menu Utama -->
+    <div id="uiOverlay" class="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/95 backdrop-blur-md">
+        <div class="text-center max-w-sm p-6 bg-black border-2 border-green-500 rounded-xl shadow-[0_0_30px_rgba(0,255,0,0.4)]">
+            <div class="text-6xl mb-3">🐱‍💻</div>
+            <h1 class="text-xl font-bold mb-2 text-green-400 tracking-wider">CYBER SCANNER v1.0</h1>
+            <p class="text-xs text-green-600 mb-6 font-mono leading-relaxed">
+                Fitur ESP Real-World Object Detection. Arahkan kamera belakang ke sekitar untuk mendeteksi kucing, orang, atau benda lain layaknya hacker masa depan.
+            </p>
+            <button onclick="initHackerMode()" class="w-full bg-green-900/50 hover:bg-green-700/70 border border-green-400 text-green-200 font-bold py-3 px-6 rounded transition-all shadow-[0_0_15px_rgba(0,255,0,0.5)] uppercase tracking-widest text-sm">
+                Mulai Hack / Scan
+            </button>
+        </div>
+    </div>
 
-    // Array efek flash warning (berubah dengan sangat cepat)
-    const flashEffects = [
-      'invert(100%) hue-rotate(90deg) saturate(400%)',
-      'invert(100%) hue-rotate(180deg) saturate(400%)',
-      'invert(100%) hue-rotate(270deg) saturate(400%)',
-      'contrast(300%) brightness(150%) hue-rotate(45deg)',
-      'invert(100%) sepia(100%) saturate(500%) hue-rotate(310deg)'
-    ];
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('overlayCanvas');
+        const ctx = canvas.getContext('2d');
+        const objectCount = document.getElementById('objectCount');
+        const terminalLog = document.getElementById('terminalLog');
+        const uiOverlay = document.getElementById('uiOverlay');
 
-    // Logika buka/tutup modal pengaturan
-    settingsBtn.onclick = () => settingsModal.classList.remove('hidden');
-    closeSettingsBtn.onclick = () => settingsModal.classList.add('hidden');
-    saveSettingsBtn.onclick = () => {
-      fingerConfig.t1_p1 = parseInt(document.getElementById('t1_p1').value);
-      fingerConfig.t1_p2 = parseInt(document.getElementById('t1_p2').value);
-      fingerConfig.t2_p1 = parseInt(document.getElementById('t2_p1').value);
-      fingerConfig.t2_p2 = parseInt(document.getElementById('t2_p2').value);
-      settingsModal.classList.add('hidden');
-    };
+        let model = null;
+        let isRunning = false;
 
-    function onResults(results) {
-      if (loadingIndicator.style.display !== 'none') {
-        loadingIndicator.style.display = 'none';
-      }
-
-      // Ukuran disesuaikan dengan video
-      const w = canvasElement.width = videoElement.videoWidth;
-      const h = canvasElement.height = videoElement.videoHeight;
-
-      // 1. Gambar video aslinya terlebih dahulu
-      canvasCtx.drawImage(results.image, 0, 0, w, h);
-
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        let framePoints = [];
-
-        // Ambil titik sesuai konfigurasi pengguna
-        if (results.multiHandLandmarks.length >= 2) {
-          const hand1 = results.multiHandLandmarks[0];
-          const hand2 = results.multiHandLandmarks[1];
-
-          framePoints = [
-            { x: hand1[fingerConfig.t1_p1].x * w, y: hand1[fingerConfig.t1_p1].y * h },
-            { x: hand1[fingerConfig.t1_p2].x * w, y: hand1[fingerConfig.t1_p2].y * h },
-            { x: hand2[fingerConfig.t2_p1].x * w, y: hand2[fingerConfig.t2_p1].y * h },
-            { x: hand2[fingerConfig.t2_p2].x * w, y: hand2[fingerConfig.t2_p2].y * h }
-          ];
-        } else if (results.multiHandLandmarks.length === 1) {
-          // Jika hanya 1 tangan, gambar segitiga pakai 3 jari agar tetap ada efeknya
-          const hand = results.multiHandLandmarks[0];
-          framePoints = [
-            { x: hand[fingerConfig.t1_p1].x * w, y: hand[fingerConfig.t1_p1].y * h },
-            { x: hand[fingerConfig.t1_p2].x * w, y: hand[fingerConfig.t1_p2].y * h },
-            { x: hand[20].x * w, y: hand[20].y * h } // Jari kelingking sbg titik ke 3
-          ];
+        function addLog(text) {
+            const p = document.createElement('div');
+            p.innerText = `> ${text}`;
+            terminalLog.appendChild(p);
+            // Batasi log maksimal 3 baris agar rapi
+            if (terminalLog.children.length > 3) {
+                terminalLog.removeChild(terminalLog.firstChild);
+            }
         }
 
-        if (framePoints.length > 0) {
-          canvasCtx.save();
-          
-          // Buat jalur area filter
-          canvasCtx.beginPath();
-          canvasCtx.moveTo(framePoints[0].x, framePoints[0].y);
-          for (let i = 1; i < framePoints.length; i++) {
-            canvasCtx.lineTo(framePoints[i].x, framePoints[i].y);
-          }
-          canvasCtx.closePath();
+        async function initHackerMode() {
+            uiOverlay.innerHTML = `
+                <div class="text-center">
+                    <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500 mx-auto mb-3"></div>
+                    <p class="text-green-400 font-mono text-sm">Mengunduh Model AI & Membuka Kamera Belakang...</p>
+                </div>
+            `;
 
-          // Potong area
-          canvasCtx.clip();
+            try {
+                // Paksa menggunakan kamera belakang (environment)
+                const constraints = {
+                    video: { facingMode: { exact: "environment" } },
+                    audio: false
+                };
+                
+                let stream;
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                } catch (e) {
+                    // Fallback jika 'exact: environment' gagal di beberapa jenis HP
+                    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+                }
 
-          // Hitung index efek berdasarkan waktu saat ini (ganti warna setiap 60 milidetik!)
-          const time = Date.now();
-          const effectIndex = Math.floor(time / 60) % flashEffects.length;
-          
-          // Terapkan efek kedip (flash warning)
-          canvasCtx.filter = flashEffects[effectIndex];
-          canvasCtx.drawImage(results.image, 0, 0, w, h);
-          
-          // Reset clip dan filter
-          canvasCtx.restore();
+                video.srcObject = stream;
+                await new Promise((resolve) => {
+                    video.onloadedmetadata = () => { resolve(); };
+                });
 
-          // Gambar border di sekeliling area potong
-          canvasCtx.beginPath();
-          canvasCtx.moveTo(framePoints[0].x, framePoints[0].y);
-          for (let i = 1; i < framePoints.length; i++) {
-            canvasCtx.lineTo(framePoints[i].x, framePoints[i].y);
-          }
-          canvasCtx.closePath();
+                // Sesuaikan ukuran canvas dengan video
+                canvas.width = video.videoWidth || window.innerWidth;
+                canvas.height = video.videoHeight || window.innerHeight;
 
-          // Efek border RGB yang ikut berkedip
-          const borderColors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF'];
-          canvasCtx.lineWidth = 5;
-          canvasCtx.strokeStyle = borderColors[Math.floor(time / 80) % borderColors.length];
-          canvasCtx.stroke();
+                addLog("Kamera Belakang Berhasil Diaktifkan.");
+
+                // Load model COCO-SSD (mengenal 80+ objek termasuk 'cat', 'person', 'cell phone', dll)
+                addLog("Memuat AI Objek Deteksi (COCO-SSD)...");
+                model = await cocoSsd.load();
+                addLog("Sistem ESP Berhasil Disinkronisasi.");
+
+                // Sembunyikan menu loading, mulai game/scanner
+                uiOverlay.classList.add('hidden');
+                isRunning = true;
+                detectLoop();
+
+            } catch (err) {
+                console.error(err);
+                alert("Gagal mengakses kamera belakang. Pastikan izin kamera di browser sudah diizinkan.");
+                location.reload();
+            }
         }
-      }
-    }
 
-    // AI Initialization
-    const hands = new Hands({
-      locateFile: (file) => {
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-      }
-    });
+        async function detectLoop() {
+            if (!isRunning) return;
 
-    // PENGATURAN PERFORMA TINGGI UNTUK HP
-    hands.setOptions({
-      maxNumHands: 2,
-      modelComplexity: 0, // "0" Sangat ringan & cepat (FPS naik drastis), walau sedikit kurang akurat dari "1"
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
-    });
-    hands.onResults(onResults);
+            // Deteksi objek dari frame video saat ini
+            const predictions = await model.detect(video);
 
-    // Camera Initialization
-    const camera = new Camera(videoElement, {
-      onFrame: async () => {
-        await hands.send({image: videoElement});
-      },
-      // PENGATURAN RESOLUSI DITURUNKAN AGAR TIDAK PATAH-PATAH DI HP
-      width: 640,  
-      height: 480, 
-      facingMode: "user"
-    });
+            // Bersihkan canvas frame sebelumnya
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    camera.start().catch(err => {
-      console.error("Camera error:", err);
-      loadingIndicator.innerHTML = "❌ Kamera Diblokir.<br>Buka link ini di tab browser baru (bukan Iframe)!";
-      loadingIndicator.classList.replace("border-yellow-600", "border-red-600");
-      loadingIndicator.classList.replace("text-yellow-400", "text-red-400");
-      loadingIndicator.classList.remove("animate-pulse");
-    });
-  </script>
+            objectCount.innerText = predictions.length;
+
+            predictions.forEach(prediction => {
+                const [x, y, width, height] = prediction.bbox;
+                const label = prediction.class;
+                const score = Math.round(prediction.score * 100);
+
+                // Khusus jika objek adalah KUCING ('cat'), berikan warna merah/pink menyala ala target prioritas!
+                const isCat = (label === 'cat');
+                const boxColor = isCat ? '#ff0055' : '#00ff66';
+                
+                // Gambar Kotak ESP (Bounding Box)
+                ctx.strokeStyle = boxColor;
+                ctx.lineWidth = 3;
+                ctx.shadowColor = boxColor;
+                ctx.shadowBlur = 12;
+                ctx.strokeRect(x, y, width, height);
+
+                // Latar belakang teks label
+                ctx.fillStyle = isCat ? 'rgba(255, 0, 85, 0.4)' : 'rgba(0, 255, 102, 0.2)';
+                ctx.fillRect(x, y - 25, width > 130 ? width : 130, 25);
+
+                // Teks Label ESP
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 12px Courier New';
+                ctx.shadowBlur = 0;
+                
+                let displayText = `[${label.toUpperCase()}] ${score}%`;
+                if (isCat) {
+                    displayText = `🚨 [TARGET KUCING TERDETEKSI!]`;
+                    if (Math.random() < 0.05) {
+                        addLog("PENGINGAT: Target Kucing Terkunci di Koordinat (" + Math.round(x) + "," + Math.round(y) + ")");
+                    }
+                }
+
+                ctx.fillText(displayText, x + 5, y - 8);
+            });
+
+            // Lanjut ke frame berikutnya
+            requestAnimationFrame(detectLoop);
+        }
+    </script>
 </body>
 </html>
